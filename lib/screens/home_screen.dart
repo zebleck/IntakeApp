@@ -15,9 +15,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   final _screens = const [
-    ListsScreen(),
-    RecipesScreen(),
     TrackerScreen(),
+    RecipesScreen(),
+    ListsScreen(),
   ];
 
   @override
@@ -46,9 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
           type: BottomNavigationBarType.fixed,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart_outlined),
-              activeIcon: Icon(Icons.shopping_cart),
-              label: 'Lists',
+              icon: Icon(Icons.timeline_outlined),
+              activeIcon: Icon(Icons.timeline),
+              label: 'Tracker',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.menu_book_outlined),
@@ -56,9 +56,9 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Recipes',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.timeline_outlined),
-              activeIcon: Icon(Icons.timeline),
-              label: 'Tracker',
+              icon: Icon(Icons.shopping_cart_outlined),
+              activeIcon: Icon(Icons.shopping_cart),
+              label: 'Lists',
             ),
           ],
         ),
