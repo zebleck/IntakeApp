@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/shopping_item.dart';
+import 'animated_checkmark.dart';
 
 class ItemTile extends StatelessWidget {
   final ShoppingItem item;
@@ -40,7 +42,10 @@ class ItemTile extends StatelessWidget {
         ),
         child: const Icon(Icons.delete_outline, color: Colors.red, size: 24),
       ),
-      onDismissed: (_) => onDelete(),
+      onDismissed: (_) {
+        HapticFeedback.mediumImpact();
+        onDelete();
+      },
       child: AnimatedOpacity(
         opacity: item.isChecked ? 0.5 : 1.0,
         duration: const Duration(milliseconds: 300),
@@ -55,25 +60,44 @@ class ItemTile extends StatelessWidget {
           child: Row(
             children: [
               GestureDetector(
-                onTap: () => onToggle(!item.isChecked),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: item.isChecked
-                        ? const LinearGradient(
-                            colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                          )
-                        : null,
-                    border: item.isChecked
-                        ? null
-                        : Border.all(color: Colors.white38, width: 2),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  onToggle(!item.isChecked);
+                },
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(
+                    begin: item.isChecked ? 0.0 : 1.0,
+                    end: item.isChecked ? 1.0 : 0.0,
                   ),
-                  child: item.isChecked
-                      ? const Icon(Icons.check, color: Colors.white, size: 16)
-                      : null,
+                  duration: const Duration(milliseconds: 300),
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: 1.0 + value * 0.1,
+                      child: Transform.rotate(
+                        angle: value * 0.1,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: item.isChecked
+                          ? const LinearGradient(
+                              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                            )
+                          : null,
+                      border: item.isChecked
+                          ? null
+                          : Border.all(color: Colors.white38, width: 2),
+                    ),
+                    child: AnimatedCheckmark(
+                      isChecked: item.isChecked,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

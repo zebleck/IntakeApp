@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../db/database.dart';
@@ -7,6 +9,9 @@ import '../models/recipe_ingredient.dart';
 import '../models/recipe_step.dart';
 import '../widgets/ingredient_tile.dart';
 import '../widgets/step_tile.dart';
+import '../widgets/animated_list_item.dart';
+import '../widgets/shimmer_placeholder.dart';
+import '../widgets/animated_gradient_background.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -58,6 +63,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   Future<void> _addInput(String input) async {
     if (input.trim().isEmpty) return;
+    HapticFeedback.lightImpact();
 
     if (_inputMode == _InputMode.ingredient) {
       final parsed = _parseIngredientInput(input.trim());
@@ -108,11 +114,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<void> _deleteIngredient(RecipeIngredient ingredient) async {
+    HapticFeedback.mediumImpact();
     await AppDatabase.instance.deleteRecipeIngredient(ingredient.id!);
     _loadData();
   }
 
   Future<void> _deleteStep(RecipeStep step) async {
+    HapticFeedback.mediumImpact();
     await AppDatabase.instance.deleteRecipeStep(step.id!);
     _loadData();
   }
@@ -181,14 +189,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final isLink = _link != null && _link!.isNotEmpty;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0A0E21), Color(0xFF0F1328)],
-          ),
-        ),
+      body: AnimatedGradientBackground(
         child: SafeArea(
           child: Column(
             children: [
@@ -219,21 +220,32 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 ),
               ),
 
-              // Content
+              // Content + frosted input bar
               Expanded(
-                child: _loading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF667EEA),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: _loading
+                          ? const ShimmerPlaceholder(style: ShimmerStyle.listTile)
+                          : isLink
+                              ? _buildLinkView()
+                              : _buildRecipeView(),
+                    ),
+                    if (!isLink)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: ClipRect(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                            child: _buildInputBar(),
+                          ),
                         ),
-                      )
-                    : isLink
-                        ? _buildLinkView()
-                        : _buildRecipeView(),
+                      ),
+                  ],
+                ),
               ),
-
-              // Input bar (only for full recipes)
-              if (!isLink) _buildInputBar(),
             ],
           ),
         ),
@@ -304,7 +316,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
       children: [
         if (_ingredients.isNotEmpty) ...[
           Padding(
@@ -318,10 +330,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               ),
             ),
           ),
-          ..._ingredients.map((ing) => IngredientTile(
-                ingredient: ing,
-                onDelete: () => _deleteIngredient(ing),
-              )),
+          for (int i = 0; i < _ingredients.length; i++)
+            AnimatedListItem(
+              index: i,
+              child: IngredientTile(
+                ingredient: _ingredients[i],
+                onDelete: () => _deleteIngredient(_ingredients[i]),
+              ),
+            ),
         ],
         if (_ingredients.isNotEmpty && _steps.isNotEmpty)
           Padding(
@@ -340,10 +356,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               ),
             ),
           ),
-          ..._steps.map((step) => StepTile(
-                step: step,
-                onDelete: () => _deleteStep(step),
-              )),
+          for (int i = 0; i < _steps.length; i++)
+            AnimatedListItem(
+              index: i,
+              child: StepTile(
+                step: _steps[i],
+                onDelete: () => _deleteStep(_steps[i]),
+              ),
+            ),
         ],
       ],
     );
@@ -353,7 +373,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
       decoration: BoxDecoration(
-        color: Colors.white.withAlpha(8),
+        color: const Color(0xFF0A0E21).withAlpha(180),
         border: Border(
           top: BorderSide(color: Colors.white.withAlpha(13)),
         ),

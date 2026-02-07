@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/food_entry.dart';
 import '../models/recipe.dart';
@@ -9,6 +10,7 @@ class FoodEntryTile extends StatelessWidget {
   final VoidCallback onDelete;
   final ValueChanged<TimeOfDay>? onTimeEdit;
   final ValueChanged<String?>? onCommentEdit;
+  final ValueChanged<String>? onNameEdit;
 
   const FoodEntryTile({
     super.key,
@@ -16,6 +18,7 @@ class FoodEntryTile extends StatelessWidget {
     required this.onDelete,
     this.onTimeEdit,
     this.onCommentEdit,
+    this.onNameEdit,
   });
 
   String _formatTime() {
@@ -50,7 +53,10 @@ class FoodEntryTile extends StatelessWidget {
         ),
         child: const Icon(Icons.delete_outline, color: Colors.red, size: 24),
       ),
-      onDismissed: (_) => onDelete(),
+      onDismissed: (_) {
+        HapticFeedback.mediumImpact();
+        onDelete();
+      },
       child: GestureDetector(
         onLongPress: () => _showCommentDialog(context),
         child: Container(
@@ -103,11 +109,21 @@ class FoodEntryTile extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      entry.name,
-                      style: GoogleFonts.spaceMono(
-                        color: Colors.white,
-                        fontSize: 14,
+                    child: GestureDetector(
+                      onTap: onNameEdit != null
+                          ? () => _showNameDialog(context)
+                          : null,
+                      child: Text(
+                        entry.name,
+                        style: GoogleFonts.spaceMono(
+                          color: Colors.white,
+                          fontSize: 14,
+                          decoration: onNameEdit != null
+                              ? TextDecoration.underline
+                              : null,
+                          decorationColor: Colors.white24,
+                          decorationStyle: TextDecorationStyle.dotted,
+                        ),
                       ),
                     ),
                   ),
@@ -186,6 +202,53 @@ class FoodEntryTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showNameDialog(BuildContext context) {
+    if (onNameEdit == null) return;
+    final controller = TextEditingController(text: entry.name);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F3A),
+        title: Text('Rename',
+            style: GoogleFonts.spaceMono(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: GoogleFonts.spaceMono(color: Colors.white, fontSize: 13),
+          decoration: InputDecoration(
+            hintText: 'Entry name',
+            hintStyle: GoogleFonts.spaceMono(color: Colors.white38),
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white24),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFF667EEA)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel',
+                style: GoogleFonts.spaceMono(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final text = controller.text.trim();
+              if (text.isNotEmpty && text != entry.name) {
+                onNameEdit!(text);
+              }
+            },
+            child: Text('Save',
+                style: GoogleFonts.spaceMono(
+                    color: const Color(0xFF667EEA))),
+          ),
+        ],
       ),
     );
   }

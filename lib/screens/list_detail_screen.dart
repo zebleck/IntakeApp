@@ -1,9 +1,14 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../db/database.dart';
 import '../models/shopping_list.dart';
 import '../models/shopping_item.dart';
 import '../widgets/item_tile.dart';
+import '../widgets/animated_list_item.dart';
+import '../widgets/shimmer_placeholder.dart';
+import '../widgets/animated_gradient_background.dart';
 
 class ListDetailScreen extends StatefulWidget {
   final ShoppingList shoppingList;
@@ -46,6 +51,7 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
 
   Future<void> _addItem(String input) async {
     if (input.trim().isEmpty) return;
+    HapticFeedback.lightImpact();
 
     final parsed = _parseItemInput(input.trim());
     final item = ShoppingItem(
@@ -93,6 +99,7 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
   }
 
   Future<void> _deleteItem(ShoppingItem item) async {
+    HapticFeedback.mediumImpact();
     await AppDatabase.instance.deleteItem(item.id!);
     _loadItems();
   }
@@ -149,14 +156,7 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
     final checked = _items.where((i) => i.isChecked).toList();
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0A0E21), Color(0xFF0F1328)],
-          ),
-        ),
+      body: AnimatedGradientBackground(
         child: SafeArea(
           child: Column(
             children: [
@@ -195,113 +195,132 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
                 ),
               ),
 
-              // Items list
+              // Items list + frosted input bar
               Expanded(
-                child: _loading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF667EEA),
-                        ),
-                      )
-                    : _items.isEmpty
-                        ? _buildEmptyState()
-                        : ListView(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                            children: [
-                              ...unchecked.map((item) => ItemTile(
-                                    item: item,
-                                    onToggle: (val) => _toggleItem(item, val),
-                                    onDelete: () => _deleteItem(item),
-                                  )),
-                              if (checked.isNotEmpty && unchecked.isNotEmpty)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Divider(
-                                            color:
-                                                Colors.white.withAlpha(26)),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12),
-                                        child: Text(
-                                          'done',
-                                          style: GoogleFonts.spaceMono(
-                                            color: Colors.white24,
-                                            fontSize: 11,
-                                          ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: _loading
+                          ? const ShimmerPlaceholder(style: ShimmerStyle.listTile)
+                          : _items.isEmpty
+                              ? _buildEmptyState()
+                              : ListView(
+                                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                                  children: [
+                                    for (int i = 0; i < unchecked.length; i++)
+                                      AnimatedListItem(
+                                        index: i,
+                                        child: ItemTile(
+                                          item: unchecked[i],
+                                          onToggle: (val) => _toggleItem(unchecked[i], val),
+                                          onDelete: () => _deleteItem(unchecked[i]),
                                         ),
                                       ),
-                                      Expanded(
-                                        child: Divider(
-                                            color:
-                                                Colors.white.withAlpha(26)),
+                                    if (checked.isNotEmpty && unchecked.isNotEmpty)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.symmetric(vertical: 8),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Divider(
+                                                  color:
+                                                      Colors.white.withAlpha(26)),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12),
+                                              child: Text(
+                                                'done',
+                                                style: GoogleFonts.spaceMono(
+                                                  color: Colors.white24,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              child: Divider(
+                                                  color:
+                                                      Colors.white.withAlpha(26)),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ],
+                                    for (int i = 0; i < checked.length; i++)
+                                      AnimatedListItem(
+                                        index: unchecked.length + i,
+                                        child: ItemTile(
+                                          item: checked[i],
+                                          onToggle: (val) => _toggleItem(checked[i], val),
+                                          onDelete: () => _deleteItem(checked[i]),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                    ),
+                    // Frosted glass input bar
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: ClipRect(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                          child: Container(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0A0E21).withAlpha(180),
+                              border: Border(
+                                top: BorderSide(color: Colors.white.withAlpha(13)),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _inputController,
+                                    focusNode: _inputFocusNode,
+                                    style: GoogleFonts.spaceMono(
+                                        color: Colors.white, fontSize: 14),
+                                    decoration: InputDecoration(
+                                      hintText: 'Add item... (e.g. 2kg rice)',
+                                      hintStyle: GoogleFonts.spaceMono(
+                                          color: Colors.white24, fontSize: 13),
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.zero,
+                                      isDense: true,
+                                    ),
+                                    onSubmitted: (val) {
+                                      _addItem(val);
+                                      _inputFocusNode.requestFocus();
+                                    },
                                   ),
                                 ),
-                              ...checked.map((item) => ItemTile(
-                                    item: item,
-                                    onToggle: (val) => _toggleItem(item, val),
-                                    onDelete: () => _deleteItem(item),
-                                  )),
-                            ],
+                                Container(
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: LinearGradient(
+                                      colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                                    ),
+                                  ),
+                                  child: IconButton(
+                                    icon:
+                                        const Icon(Icons.add, color: Colors.white, size: 20),
+                                    onPressed: () {
+                                      _addItem(_inputController.text);
+                                      _inputFocusNode.requestFocus();
+                                    },
+                                    constraints: const BoxConstraints(
+                                      minWidth: 36,
+                                      minHeight: 36,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-              ),
-
-              // Input bar
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(8),
-                  border: Border(
-                    top: BorderSide(color: Colors.white.withAlpha(13)),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _inputController,
-                        focusNode: _inputFocusNode,
-                        style: GoogleFonts.spaceMono(
-                            color: Colors.white, fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'Add item... (e.g. 2kg rice)',
-                          hintStyle: GoogleFonts.spaceMono(
-                              color: Colors.white24, fontSize: 13),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                          isDense: true,
                         ),
-                        onSubmitted: (val) {
-                          _addItem(val);
-                          _inputFocusNode.requestFocus();
-                        },
-                      ),
-                    ),
-                    Container(
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                        ),
-                      ),
-                      child: IconButton(
-                        icon:
-                            const Icon(Icons.add, color: Colors.white, size: 20),
-                        onPressed: () {
-                          _addItem(_inputController.text);
-                          _inputFocusNode.requestFocus();
-                        },
-                        constraints: const BoxConstraints(
-                          minWidth: 36,
-                          minHeight: 36,
-                        ),
-                        padding: EdgeInsets.zero,
                       ),
                     ),
                   ],

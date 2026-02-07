@@ -451,6 +451,16 @@ class AppDatabase {
     );
   }
 
+  Future<void> updateFoodEntryName(int id, String name) async {
+    final db = await database;
+    await db.update(
+      'food_entries',
+      {'name': name},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   // --- Daily Focus ---
 
   Future<DailyFocus?> getDailyFocus(String date) async {

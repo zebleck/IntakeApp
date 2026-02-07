@@ -1,9 +1,14 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../db/database.dart';
 import '../models/food_entry.dart';
 import '../models/daily_focus.dart';
 import '../widgets/food_entry_tile.dart';
+import '../widgets/animated_list_item.dart';
+import '../widgets/shimmer_placeholder.dart';
+import '../widgets/animated_gradient_background.dart';
 
 class TrackerScreen extends StatefulWidget {
   const TrackerScreen({super.key});
@@ -12,7 +17,11 @@ class TrackerScreen extends StatefulWidget {
   State<TrackerScreen> createState() => _TrackerScreenState();
 }
 
-class _TrackerScreenState extends State<TrackerScreen> {
+class _TrackerScreenState extends State<TrackerScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   DateTime _selectedDate = DateTime.now();
   List<FoodEntry> _entries = [];
   DailyFocus? _focus;
@@ -26,6 +35,12 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
   // Optional custom time (null = use current time)
   TimeOfDay? _selectedTime;
+
+  // Animated focus circle
+  int? _animatingRating;
+
+  // Date transition direction
+  bool _navigatingForward = true;
 
   @override
   void initState() {
@@ -63,6 +78,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
   void _goToPreviousDay() {
     setState(() {
+      _navigatingForward = false;
       _selectedDate = _selectedDate.subtract(const Duration(days: 1));
       _loading = true;
     });
@@ -72,6 +88,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
   void _goToNextDay() {
     if (_isToday) return;
     setState(() {
+      _navigatingForward = true;
       _selectedDate = _selectedDate.add(const Duration(days: 1));
       _loading = true;
     });
@@ -80,6 +97,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
   void _goToToday() {
     setState(() {
+      _navigatingForward = true;
       _selectedDate = DateTime.now();
       _loading = true;
     });
@@ -87,6 +105,11 @@ class _TrackerScreenState extends State<TrackerScreen> {
   }
 
   Future<void> _setFocus(int rating) async {
+    HapticFeedback.mediumImpact();
+    setState(() => _animatingRating = rating);
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _animatingRating = null);
+    });
     final dateStr = _dateKey(_selectedDate);
     await AppDatabase.instance.setDailyFocus(dateStr, rating);
     _loadData();
@@ -94,6 +117,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
   Future<void> _addFood(String input) async {
     if (input.trim().isEmpty) return;
+    HapticFeedback.lightImpact();
 
     final parsed = _parseItemInput(input.trim());
     DateTime loggedAt;
@@ -188,7 +212,13 @@ class _TrackerScreenState extends State<TrackerScreen> {
     _loadData();
   }
 
+  Future<void> _editEntryName(FoodEntry entry, String name) async {
+    await AppDatabase.instance.updateFoodEntryName(entry.id!, name);
+    _loadData();
+  }
+
   Future<void> _deleteEntry(FoodEntry entry) async {
+    HapticFeedback.mediumImpact();
     await AppDatabase.instance.deleteFoodEntry(entry.id!);
     _loadData();
   }
@@ -290,15 +320,9 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0A0E21), Color(0xFF0F1328)],
-          ),
-        ),
+      body: AnimatedGradientBackground(
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,12 +330,17 @@ class _TrackerScreenState extends State<TrackerScreen> {
               // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                child: Text(
-                  'intake',
-                  style: GoogleFonts.spaceMono(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
+                child: ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                  ).createShader(bounds),
+                  child: Text(
+                    'intake',
+                    style: GoogleFonts.spaceMono(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -326,7 +355,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                 ),
               ),
 
-              // Date nav bar
+              // Date nav bar with AnimatedSwitcher
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -338,12 +367,31 @@ class _TrackerScreenState extends State<TrackerScreen> {
                     ),
                     Expanded(
                       child: Center(
-                        child: Text(
-                          _formatDate(_selectedDate),
-                          style: GoogleFonts.spaceMono(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, animation) {
+                            final offset = _navigatingForward
+                                ? Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                                : Tween<Offset>(begin: const Offset(-1, 0), end: Offset.zero);
+                            return SlideTransition(
+                              position: offset.animate(CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOut,
+                              )),
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: Text(
+                            _formatDate(_selectedDate),
+                            key: ValueKey(_dateKey(_selectedDate)),
+                            style: GoogleFonts.spaceMono(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
@@ -379,78 +427,116 @@ class _TrackerScreenState extends State<TrackerScreen> {
                 ),
               ),
 
-              // Content
+              // Content + frosted input bar as Stack
               Expanded(
-                child: _loading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF667EEA),
-                        ),
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                        children: [
-                          // Focus section
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4, bottom: 8),
-                            child: Text(
-                              'Focus',
-                              style: GoogleFonts.spaceMono(
-                                color: Colors.white54,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          _buildFocusRow(),
-                          const SizedBox(height: 16),
-
-                          // Food log divider
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Divider(
-                                      color: Colors.white.withAlpha(26)),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  child: Text(
-                                    'food log',
-                                    style: GoogleFonts.spaceMono(
-                                      color: Colors.white24,
-                                      fontSize: 11,
+                child: Stack(
+                  children: [
+                    // Scrollable content
+                    Positioned.fill(
+                      child: _loading
+                          ? const ShimmerPlaceholder(style: ShimmerStyle.listTile)
+                          : AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              transitionBuilder: (child, animation) {
+                                final offset = _navigatingForward
+                                    ? Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                                    : Tween<Offset>(begin: const Offset(-1, 0), end: Offset.zero);
+                                return SlideTransition(
+                                  position: offset.animate(CurvedAnimation(
+                                    parent: animation,
+                                    curve: Curves.easeOut,
+                                  )),
+                                  child: FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: ListView(
+                                key: ValueKey(_dateKey(_selectedDate)),
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                                children: [
+                                  // Focus section
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 4, bottom: 8),
+                                    child: Text(
+                                      'Focus',
+                                      style: GoogleFonts.spaceMono(
+                                        color: Colors.white54,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                Expanded(
-                                  child: Divider(
-                                      color: Colors.white.withAlpha(26)),
-                                ),
-                              ],
+                                  _buildFocusRow(),
+                                  const SizedBox(height: 16),
+
+                                  // Food log divider
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Divider(
+                                              color: Colors.white.withAlpha(26)),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12),
+                                          child: Text(
+                                            'food log',
+                                            style: GoogleFonts.spaceMono(
+                                              color: Colors.white24,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Divider(
+                                              color: Colors.white.withAlpha(26)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Food entries
+                                  if (_entries.isEmpty)
+                                    _buildEmptyState()
+                                  else
+                                    for (int i = 0; i < _entries.length; i++)
+                                      AnimatedListItem(
+                                        index: i,
+                                        child: FoodEntryTile(
+                                          entry: _entries[i],
+                                          onDelete: () => _deleteEntry(_entries[i]),
+                                          onTimeEdit: (time) =>
+                                              _editEntryTime(_entries[i], time),
+                                          onCommentEdit: (comment) =>
+                                              _editEntryComment(_entries[i], comment),
+                                          onNameEdit: (name) =>
+                                              _editEntryName(_entries[i], name),
+                                        ),
+                                      ),
+                                ],
+                              ),
                             ),
-                          ),
+                    ),
 
-                          // Food entries
-                          if (_entries.isEmpty)
-                            _buildEmptyState()
-                          else
-                            ..._entries.map((e) => FoodEntryTile(
-                                  entry: e,
-                                  onDelete: () => _deleteEntry(e),
-                                  onTimeEdit: (time) =>
-                                      _editEntryTime(e, time),
-                                  onCommentEdit: (comment) =>
-                                      _editEntryComment(e, comment),
-                                )),
-                        ],
+                    // Frosted glass input bar
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 72,
+                      child: ClipRect(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                          child: _buildInputBar(),
+                        ),
                       ),
+                    ),
+                  ],
+                ),
               ),
-
-              // Input bar
-              _buildInputBar(),
             ],
           ),
         ),
@@ -466,32 +552,38 @@ class _TrackerScreenState extends State<TrackerScreen> {
         children: List.generate(10, (i) {
           final rating = i + 1;
           final isSelected = currentRating == rating;
+          final isAnimating = _animatingRating == rating;
           return Padding(
             padding: const EdgeInsets.only(right: 6),
             child: GestureDetector(
               onTap: () => _setFocus(rating),
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: isSelected
-                      ? const LinearGradient(
-                          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                        )
-                      : null,
-                  color: isSelected ? null : Colors.white.withAlpha(13),
-                  border: isSelected
-                      ? null
-                      : Border.all(color: Colors.white.withAlpha(26)),
-                ),
-                child: Center(
-                  child: Text(
-                    '$rating',
-                    style: GoogleFonts.spaceMono(
-                      color: isSelected ? Colors.white : Colors.white54,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+              child: AnimatedScale(
+                scale: isAnimating ? 1.3 : 1.0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.elasticOut,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: isSelected
+                        ? const LinearGradient(
+                            colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                          )
+                        : null,
+                    color: isSelected ? null : Colors.white.withAlpha(13),
+                    border: isSelected
+                        ? null
+                        : Border.all(color: Colors.white.withAlpha(26)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$rating',
+                      style: GoogleFonts.spaceMono(
+                        color: isSelected ? Colors.white : Colors.white54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -507,7 +599,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
       decoration: BoxDecoration(
-        color: Colors.white.withAlpha(8),
+        color: const Color(0xFF0A0E21).withAlpha(180),
         border: Border(
           top: BorderSide(color: Colors.white.withAlpha(13)),
         ),

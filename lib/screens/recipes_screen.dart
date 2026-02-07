@@ -3,6 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../db/database.dart';
 import '../models/recipe.dart';
 import '../widgets/recipe_tile_card.dart';
+import '../widgets/animated_list_item.dart';
+import '../widgets/shimmer_placeholder.dart';
+import '../widgets/animated_gradient_background.dart';
 import 'recipe_detail_screen.dart';
 
 class RecipesScreen extends StatefulWidget {
@@ -12,7 +15,11 @@ class RecipesScreen extends StatefulWidget {
   State<RecipesScreen> createState() => _RecipesScreenState();
 }
 
-class _RecipesScreenState extends State<RecipesScreen> {
+class _RecipesScreenState extends State<RecipesScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   List<Recipe> _recipes = [];
   bool _loading = true;
 
@@ -230,27 +237,26 @@ class _RecipesScreenState extends State<RecipesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0A0E21), Color(0xFF0F1328)],
-          ),
-        ),
+      body: AnimatedGradientBackground(
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                child: Text(
-                  'intake',
-                  style: GoogleFonts.spaceMono(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
+                child: ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                  ).createShader(bounds),
+                  child: Text(
+                    'intake',
+                    style: GoogleFonts.spaceMono(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -266,20 +272,19 @@ class _RecipesScreenState extends State<RecipesScreen> {
               ),
               Expanded(
                 child: _loading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF667EEA),
-                        ),
-                      )
+                    ? const ShimmerPlaceholder(style: ShimmerStyle.card)
                     : _recipes.isEmpty
                         ? _buildEmptyState()
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            padding: const EdgeInsets.fromLTRB(24, 0, 24, 80),
                             itemCount: _recipes.length,
-                            itemBuilder: (ctx, i) => RecipeTileCard(
-                              recipe: _recipes[i],
-                              onTap: () => _openRecipe(_recipes[i]),
-                              onDelete: () => _deleteRecipe(_recipes[i]),
+                            itemBuilder: (ctx, i) => AnimatedListItem(
+                              index: i,
+                              child: RecipeTileCard(
+                                recipe: _recipes[i],
+                                onTap: () => _openRecipe(_recipes[i]),
+                                onDelete: () => _deleteRecipe(_recipes[i]),
+                              ),
                             ),
                           ),
               ),
@@ -287,18 +292,21 @@ class _RecipesScreenState extends State<RecipesScreen> {
           ),
         ),
       ),
-      floatingActionButton: Container(
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 72),
+        child: Container(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+            ),
           ),
-        ),
-        child: FloatingActionButton(
-          onPressed: _showCreateOptions,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(Icons.add, color: Colors.white),
+          child: FloatingActionButton(
+            onPressed: _showCreateOptions,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
         ),
       ),
     );
