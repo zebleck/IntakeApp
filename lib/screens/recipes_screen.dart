@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../db/database.dart';
 import '../models/recipe.dart';
+import '../services/gemini_service.dart';
 import '../widgets/recipe_tile_card.dart';
 import '../widgets/animated_list_item.dart';
 import '../widgets/shimmer_placeholder.dart';
@@ -148,65 +150,138 @@ class _RecipesScreenState extends State<RecipesScreen>
     final linkController = TextEditingController();
     final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1F3A),
-        title: Text('Save Link',
-            style: GoogleFonts.spaceMono(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              autofocus: true,
-              style: GoogleFonts.spaceMono(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Name...',
-                hintStyle: GoogleFonts.spaceMono(color: Colors.white38),
-                enabledBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white24),
+      builder: (ctx) {
+        bool isExtracting = false;
+        String? errorText;
+
+        Future<void> extractUrlFromCamera(StateSetter setLocalState) async {
+          setLocalState(() {
+            isExtracting = true;
+            errorText = null;
+          });
+          try {
+            final image = await ImagePicker()
+                .pickImage(source: ImageSource.camera);
+            if (image == null) {
+              setLocalState(() => isExtracting = false);
+              return;
+            }
+            final bytes = await image.readAsBytes();
+            final url = await GeminiService.extractUrlFromImage(bytes);
+            if (url != null) {
+              linkController.text = url;
+              setLocalState(() => isExtracting = false);
+            } else {
+              setLocalState(() {
+                isExtracting = false;
+                errorText = 'No URL found in image';
+              });
+            }
+          } catch (e) {
+            setLocalState(() {
+              isExtracting = false;
+              errorText = e.toString();
+            });
+          }
+        }
+
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1F3A),
+            title: Text('Save Link',
+                style: GoogleFonts.spaceMono(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  autofocus: true,
+                  style: GoogleFonts.spaceMono(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Name...',
+                    hintStyle: GoogleFonts.spaceMono(color: Colors.white38),
+                    enabledBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF667EEA)),
+                    ),
+                  ),
                 ),
-                focusedBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF667EEA)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: linkController,
+                        style: GoogleFonts.spaceMono(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'URL...',
+                          hintStyle:
+                              GoogleFonts.spaceMono(color: Colors.white38),
+                          enabledBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white24),
+                          ),
+                          focusedBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFF667EEA)),
+                          ),
+                        ),
+                        onSubmitted: (val) => Navigator.pop(ctx, {
+                          'name': nameController.text,
+                          'link': val,
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (isExtracting)
+                      const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF764BA2),
+                        ),
+                      )
+                    else
+                      IconButton(
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        color: const Color(0xFF764BA2),
+                        onPressed: () => extractUrlFromCamera(setLocalState),
+                      ),
+                  ],
                 ),
-              ),
+                if (errorText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      errorText!,
+                      style: GoogleFonts.spaceMono(
+                        color: Colors.redAccent,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: linkController,
-              style: GoogleFonts.spaceMono(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'URL...',
-                hintStyle: GoogleFonts.spaceMono(color: Colors.white38),
-                enabledBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF667EEA)),
-                ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancel',
+                    style: GoogleFonts.spaceMono(color: Colors.white54)),
               ),
-              onSubmitted: (val) => Navigator.pop(ctx, {
-                'name': nameController.text,
-                'link': val,
-              }),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.spaceMono(color: Colors.white54)),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, {
+                  'name': nameController.text,
+                  'link': linkController.text,
+                }),
+                child: Text('Save',
+                    style: GoogleFonts.spaceMono(
+                        color: const Color(0xFF667EEA))),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, {
-              'name': nameController.text,
-              'link': linkController.text,
-            }),
-            child: Text('Save',
-                style: GoogleFonts.spaceMono(color: const Color(0xFF667EEA))),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (result != null &&

@@ -174,9 +174,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   Future<void> _openLink() async {
     if (_link == null) return;
     final uri = Uri.parse(_link!);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Future<void> _convertToFullRecipe() async {

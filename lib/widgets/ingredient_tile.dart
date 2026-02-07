@@ -38,6 +38,33 @@ class IngredientTile extends StatelessWidget {
         ),
         child: const Icon(Icons.delete_outline, color: Colors.red, size: 24),
       ),
+      confirmDismiss: (_) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1F3A),
+            title: Text('Delete ingredient?',
+                style: GoogleFonts.spaceMono(color: Colors.white)),
+            content: Text(
+              'Remove "${ingredient.name}"?',
+              style: GoogleFonts.spaceMono(
+                  color: Colors.white70, fontSize: 13),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel',
+                    style: GoogleFonts.spaceMono(color: Colors.white54)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('Delete',
+                    style: GoogleFonts.spaceMono(color: Colors.red)),
+              ),
+            ],
+          ),
+        );
+      },
       onDismissed: (_) => onDelete(),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
